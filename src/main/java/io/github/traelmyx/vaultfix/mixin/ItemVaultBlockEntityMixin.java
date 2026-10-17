@@ -45,6 +45,7 @@ public abstract class ItemVaultBlockEntityMixin extends SmartBlockEntity impleme
 
 	@Override
 	public void vault_item_loss_fix$rebuild() {
+		VaultItemLossFix.LOGGER.debug("rebuilding vault inventory at {}", worldPosition);
 		if (itemCapability == null)
 			return;
 		itemCapability = null;
@@ -60,7 +61,7 @@ public abstract class ItemVaultBlockEntityMixin extends SmartBlockEntity impleme
 		}
 	}
 
-	@ModifyExpressionValue(method = "initCapability", require = 0, at = @At(value = "NEW", target = "()Lnet/neoforged/neoforge/items/ItemStackHandler;"))
+	@ModifyExpressionValue(method = "initCapability", require = 1, at = @At(value = "NEW", target = "()Lnet/neoforged/neoforge/items/ItemStackHandler;"))
 	private ItemStackHandler vault_item_loss_fix$refuseMissingPart(ItemStackHandler throwaway) {
 		if (!VaultItemLossFix.enabled)
 			return throwaway;
@@ -79,6 +80,7 @@ public abstract class ItemVaultBlockEntityMixin extends SmartBlockEntity impleme
 	@Override
 	public void invalidate() {
 		super.invalidate();
+		VaultItemLossFix.LOGGER.info("[debug] vault part at {} invalidated", worldPosition);
 		vault_item_loss_fix$tellController();
 	}
 
