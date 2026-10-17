@@ -1,0 +1,15 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+
+[[mods]]
+modId = "${id}_gametest"
+version = "${version}"
+displayName = "Vault Item Loss Fix Tests"
+
+[[dependencies.${id}_gametest]]
+modId = "${id}"
+type = "required"
+versionRange = "*"
+ordering = "AFTER"
+side = "BOTH"

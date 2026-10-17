@@ -1,0 +1,128 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = "${mod_version}+${minecraft_version}"
+group = mod_group_id
+base.archivesName = 'create-vault-fix'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
+}
+
+configurations {
+    createJar { transitive = false }
+}
+
+dependencies {
+    implementation "maven.modrinth:create:${create_version}"
+    createJar "maven.modrinth:create:${create_version}"
+}
+
+// Create bundles Flywheel, Ponder and Registrate inside its jar; the tests touch their types, so compile against them too
+def createNested = layout.buildDirectory.dir('create-jarjar')
+def unpackCreateDeps = tasks.register('unpackCreateDeps', Copy) {
+    from({ zipTree(configurations.createJar.singleFile) }) {
+        include 'META-INF/jarjar/*.jar'
+        eachFile { path = name }
+    }
+    includeEmptyDirs = false
+    into createNested
+}
+
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    gametestImplementation.extendsFrom implementation
+    gametestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+neoForge {
+    enable {
+        version = neo_version
+        disableRecompilation = project.hasProperty('skipRecompile')
+    }
+    addModdingDependenciesTo sourceSets.gametest
+
+    mods {
+        "${mod_id}" { sourceSet sourceSets.main }
+        "${mod_id}_gametest" { sourceSet sourceSets.gametest }
+    }
+
+    runs {
+        configureEach {
+            sourceSet = sourceSets.gametest
+        }
+        client {
+            client()
+        }
+        server {
+            server()
+        }
+        gameTest {
+            type = 'gameTestServer'
+            gameDirectory = file('run/gametest')
+            systemProperty 'neoforge.enabledGameTestNamespaces', "${mod_id}_gametest"
+        }
+        clientSmoke {
+            client()
+            gameDirectory = file('run/smoke')
+            systemProperty 'smoketest', 'true'
+        }
+    }
+}
+
+tasks.named('runGameTest') {
+    def log = file('run/gametest/logs/latest.log')
+    doFirst { delete log }
+    doLast {
+        if (!log.exists() || !(log.text =~ /All \d+ required tests passed/)) {
+            throw new GradleException("Game tests failed, see ${log}")
+        }
+    }
+}
+
+tasks.named('runClientSmoke') {
+    def marker = file('run/smoke/smoke-ok')
+    doFirst { delete marker }
+    doLast {
+        if (!marker.exists()) throw new GradleException('Client smoke test failed')
+    }
+}
+
+tasks.named('check') { dependsOn 'runGameTest' }
+
+processResources {
+    def props = [version: version, id: mod_id, name: mod_name]
+    inputs.properties props
+    filesMatching('META-INF/neoforge.mods.toml') { expand props }
+}
+
+processGametestResources {
+    def props = [version: version, id: mod_id]
+    inputs.properties props
+    filesMatching('META-INF/neoforge.mods.toml') { expand props }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    from('LICENSE') { rename { "${it}_${mod_id}" } }
+}
+
+dependencies {
+    compileOnly fileTree(createNested) { include '*.jar' }
+    gametestCompileOnly fileTree(createNested) { include '*.jar' }
+}
+tasks.named('compileGametestJava') { dependsOn unpackCreateDeps }
+tasks.named('compileJava') { dependsOn unpackCreateDeps }
