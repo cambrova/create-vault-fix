@@ -92,33 +92,39 @@ public class VaultTests {
 		});
 	}
 
-	// The vault is used while its second block is not loaded: nothing may disappear into the missing part
+	// Items stored in the second block before it reloads: taking them out afterwards must take them out of that block
 
-	private static void partMissing(GameTestHelper helper, boolean fixed, Check check) {
+	private static void takeAfterReload(GameTestHelper helper, boolean fixed, Check check) {
 		VaultItemLossFix.enabled = fixed;
 		build(helper);
-		CompoundTag[] saved = {null};
-		int[] swallowed = {0};
 		helper.runAtTickTime(10, () -> {
-			helper.assertTrue(vault(helper) != null && vault(helper).getSlots() >= 2, "the two blocks did not form one vault");
-			saved[0] = unload(helper, SECOND);
-		});
-		helper.runAtTickTime(11, () -> {
 			IItemHandler vault = vault(helper);
-			swallowed[0] = 64 - vault.insertItem(secondSlot(vault), new ItemStack(Items.DIAMOND, 64), false).getCount();
-			load(helper, SECOND, saved[0]);
+			helper.assertTrue(vault != null && vault.getSlots() >= 2, "the two blocks did not form one vault");
+			helper.assertTrue(vault.insertItem(secondSlot(vault), new ItemStack(Items.DIAMOND, 64), false).isEmpty(), "the vault did not take the diamonds");
+			load(helper, SECOND, unload(helper, SECOND));
 		});
-		helper.runAtTickTime(13, () -> {
+		helper.runAtTickTime(12, () -> {
 			IItemHandler vault = vault(helper);
-			ItemStack left = vault.insertItem(secondSlot(vault), new ItemStack(Items.DIAMOND, 64), false);
-			int stored = 64 - left.getCount();
-			int inBlock = diamondsInSecond(helper);
+			int taken = vault.extractItem(secondSlot(vault), 64, false).getCount();
+			int left = diamondsInSecond(helper);
 			VaultItemLossFix.enabled = true;
-			System.out.printf("[vault_item_loss_fix] part missing, fix %s: %d diamonds taken while it was unloaded; after it loaded the vault took %d, %d are in the block%n",
-				fixed ? "on" : "off", swallowed[0], stored, inBlock);
-			check.check(stored + swallowed[0], inBlock);
+			System.out.printf("[vault_item_loss_fix] take after reload, fix %s: took %d diamonds out, %d still in the block that gets saved%n", fixed ? "on" : "off", taken, left);
+			check.check(taken, left);
 			helper.succeed();
 		});
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 60, batch = "take_fixed")
+	public static void takingAfterReloadEmptiesTheBlock(GameTestHelper helper) {
+		takeAfterReload(helper, true, (taken, left) ->
+			helper.assertTrue(taken == 64 && left == 0, "took " + taken + ", " + left + " still in the block"));
+	}
+
+	@GameTest(template = "empty", timeoutTicks = 60, batch = "take_control")
+	public static void takeControlDuplicates(GameTestHelper helper) {
+		// without the fix the diamonds come out of a stale copy and stay in the block too
+		takeAfterReload(helper, false, (taken, left) ->
+			helper.assertTrue(taken + left > 64, "nothing was duplicated without the fix (took " + taken + ", " + left + " left): the bug did not reproduce"));
 	}
 
 	private interface Check {
@@ -137,17 +143,5 @@ public class VaultTests {
 	public static void reloadControlReproducesBug(GameTestHelper helper) {
 		partReload(helper, false, (taken, inBlock) ->
 			helper.assertTrue(taken > inBlock, "no items were lost without the fix (" + taken + " taken, " + inBlock + " saved): the bug did not reproduce"));
-	}
-
-	@GameTest(template = "empty", timeoutTicks = 60, batch = "missing_fixed")
-	public static void missingPartLosesNothing(GameTestHelper helper) {
-		partMissing(helper, true, (taken, inBlock) ->
-			helper.assertTrue(taken == inBlock && inBlock == 64, taken + " diamonds taken, " + inBlock + " in the block"));
-	}
-
-	@GameTest(template = "empty", timeoutTicks = 60, batch = "missing_control")
-	public static void missingControlReproducesBug(GameTestHelper helper) {
-		partMissing(helper, false, (taken, inBlock) ->
-			helper.assertTrue(taken > inBlock, "no items were lost without the fix (" + taken + " taken, " + inBlock + " in the block): the bug did not reproduce"));
 	}
 }

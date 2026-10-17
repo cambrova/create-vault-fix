@@ -17,8 +17,7 @@ import java.util.Properties;
  * <p>
  * A vault's controller block builds one combined inventory out of every part's own inventory and keeps it. When a part
  * in another chunk unloads and loads again, the part gets a new inventory, but the controller keeps pointing at the old
- * one, so items put into those slots go nowhere. If a part isn't loaded when the combined inventory is built, its slots
- * become a throw-away inventory that also swallows items.
+ * one, so items put into those slots go nowhere.
  */
 @Mod(VaultItemLossFix.MOD_ID)
 public class VaultItemLossFix {
@@ -52,7 +51,7 @@ public class VaultItemLossFix {
 		try {
 			Files.createDirectories(configDir);
 			try (Writer writer = Files.newBufferedWriter(file)) {
-				props.store(writer, "Vault Item Loss Fix. enabled: vaults rebuild their combined inventory when one of their parts loads or unloads, and slots of unloaded parts refuse items.");
+				props.store(writer, "Vault Item Loss Fix. enabled: vaults rebuild their combined inventory when one of their parts loads or unloads.");
 			}
 		} catch (IOException e) {
 			LOGGER.warn("Could not write {}", file, e);
